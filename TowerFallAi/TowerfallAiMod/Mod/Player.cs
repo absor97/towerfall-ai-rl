@@ -14,7 +14,10 @@ namespace TowerfallAi.Mod {
       var aiState = new StateArcher() { type = "archer" };
 
       ExtEntity.SetAiState(ent, aiState);
+      ExtEntity.SetVelocity(aiState, ent.Speed);
       aiState.playerIndex = ent.PlayerIndex;
+      aiState.dodgeCooldown = ent.dodgeCooldown;
+      aiState.aiming = ent.Aiming;
       aiState.shield = ent.HasShield;
       aiState.wing = ent.HasWings;
       aiState.state = ent.State.ToString().FirstLower();

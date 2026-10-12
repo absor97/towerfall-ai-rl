@@ -27,5 +27,9 @@ namespace TowerfallAi.Data {
 
     [DataMember(EmitDefaultValue = false)]
     public int[,] solids;
+
+    // Skips drawing the game, for training.
+    [DataMember(EmitDefaultValue = false)]
+    public bool noGraphics;
   }
 }

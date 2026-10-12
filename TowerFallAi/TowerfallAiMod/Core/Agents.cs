@@ -29,6 +29,10 @@ namespace TowerfallAi.Core {
     public static void Init() { }
 
     static List<JObject> entities;
+    static int? seed;
+    // Frames left during which the agents' last actions are held without sending an update.
+    static int framesToHold;
+    static List<StateEvent> pendingEvents = new List<StateEvent>();
     static CancellationToken cancelAgentCommunication;
     static string scenarioMessage;
 
@@ -91,6 +95,10 @@ namespace TowerfallAi.Core {
     public static void NotifyLevelLoad(Level level) {
       Logger.Info("Level reloaded");
       scenarioSent = false;
+      framesToHold = 0;
+      // Entities do not outlive a level. Arrows are pooled, so a stale entry would also give a
+      // reused arrow the id and the last position of the one before it.
+      ExtEntity.Reset();
       StateScenario stateScenario = new StateScenario();
 
       int xSize = level.Tiles.Grid.CellsX;
@@ -106,6 +114,13 @@ namespace TowerfallAi.Core {
 
       scenarioMessage = JsonConvert.SerializeObject(stateScenario);
       levelLoaded = true;
+    }
+
+    /// <summary>
+    /// Queues an event for the next update sent to the agents.
+    /// </summary>
+    public static void AddEvent(StateEvent stateEvent) {
+      pendingEvents.Add(stateEvent);
     }
 
     static void SendScenario() {
@@ -169,17 +184,43 @@ namespace TowerfallAi.Core {
       levelLoaded = false;
       scenarioSent = false;
       IsReset = false;
+      framesToHold = 0;
+      pendingEvents.Clear();
     }
 
     /// <summary>
     /// Recreate the entities in the initial state.
     /// </summary>
-    public static void Reset(List<JObject> entities, CancellationToken cancelAgentCommunication) {
+    public static void Reset(List<JObject> entities, int? seed, CancellationToken cancelAgentCommunication) {
       ExtEntity.Reset();
       frame = 0;
+      framesToHold = 0;
+      pendingEvents.Clear();
       Agents.entities = entities;
+      Agents.seed = seed;
       Agents.cancelAgentCommunication = cancelAgentCommunication;
       IsReset = true;
+    }
+
+    static readonly FieldInfo arrowPoolField = typeof(Arrow).GetField("cached", BindingFlags.Static | BindingFlags.NonPublic);
+
+    /// <summary>
+    /// Drops the objects the game keeps for reuse. They carry leftovers of their previous use, like
+    /// the sub-pixel position of an arrow, which would make a seeded episode differ from its replay.
+    /// </summary>
+    static void ClearPools() {
+      var arrowPool = (Stack<Arrow>[])arrowPoolField.GetValue(null);
+      if (arrowPool != null) {
+        foreach (Stack<Arrow> arrows in arrowPool) {
+          arrows.Clear();
+        }
+      }
+
+      if (Cache.cache != null) {
+        foreach (Stack<Entity> entities in Cache.cache.Values) {
+          entities.Clear();
+        }
+      }
     }
 
     /// <summary>
@@ -200,6 +241,11 @@ namespace TowerfallAi.Core {
       }
 
       level.UpdateEntityLists();
+
+      if (seed.HasValue) {
+        ClearPools();
+        Calc.Random = new Random(seed.Value);
+      }
 
       int playerIndex = 0;
       if (entities != null) {
@@ -248,11 +294,22 @@ namespace TowerfallAi.Core {
         RecreateEntities(level);
       }
 
+      if (framesToHold > 0) {
+        framesToHold--;
+        foreach (AgentConnection connection in AgentConnections) {
+          if (connection != null) connection.HoldGameInput();
+        }
+        frame++;
+        return;
+      }
+
       RefreshStateUpdate(level);
       stateUpdate.dt = Engine.TimeMult;
       stateUpdate.id = frame;
-      
+      stateUpdate.events = pendingEvents;
+
       string serializedStateUpdate = JsonConvert.SerializeObject(stateUpdate);
+      pendingEvents.Clear();
 
       draws.Clear();
       List<Task> tasks = new List<Task>();
@@ -273,13 +330,21 @@ namespace TowerfallAi.Core {
             draws.AddRange(message.draws);
           }
 
+          connection.Frames = Math.Max(1, message.frames);
           connection.UpdateGameInput(message.actions);
         });
         tasks.Add(task);
       }
 
       WaitAllAndClear(tasks);
-      
+
+      int frames = int.MaxValue;
+      foreach (AgentConnection connection in AgentConnections) {
+        if (connection != null) frames = Math.Min(frames, connection.Frames);
+      }
+      framesToHold = frames == int.MaxValue ? 0 : frames - 1;
+      ExtEntity.FramesPerUpdate = framesToHold + 1;
+
       frame++;
     }
 

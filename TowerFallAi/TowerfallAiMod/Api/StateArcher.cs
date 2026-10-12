@@ -12,5 +12,6 @@ namespace TowerfallAi.Api {
     public Vec2 aimDirection;
     public string team;
     public bool dodgeCooldown;
+    public bool aiming;
   }
 }

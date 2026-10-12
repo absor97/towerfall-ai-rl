@@ -1,33 +1,14 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
-    <RootNamespace>PatcherLib</RootNamespace>
+    <TargetFramework>net40</TargetFramework>
     <AssemblyName>PatcherLib</AssemblyName>
-    <ProjectGuid>{FAE08B42-BBE6-4177-9110-6DDE1032C415}</ProjectGuid>
-  </PropertyGroup>
-  <PropertyGroup>
-    <OutputType>Library</OutputType>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'PatchWindows|x86'">
-    <DebugSymbols>true</DebugSymbols>
-    <OutputPath>bin\x86\PatchWindows\</OutputPath>
-    <DefineConstants>DEBUG;</DefineConstants>
-    <DebugType>full</DebugType>
-    <PlatformTarget>x86</PlatformTarget>
+    <RootNamespace>PatcherLib</RootNamespace>
     <LangVersion>7.3</LangVersion>
-    <ErrorReport>prompt</ErrorReport>
+    <!-- Properties\AssemblyInfo.cs already declares the assembly attributes, with a wildcard version. -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Deterministic>false</Deterministic>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="PatcherAttribute.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config" />
-  </ItemGroup>
-  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>

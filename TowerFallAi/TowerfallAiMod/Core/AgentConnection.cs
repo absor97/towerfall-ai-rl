@@ -12,6 +12,10 @@ namespace TowerfallAi.Core {
     public int index;
     InputState prevInputState;
     public InputState InputState;
+    string actions;
+
+    // How many frames the agent asked to hold its last actions for.
+    public int Frames = 1;
 
     public AgentConnection(int index) : base(KeyboardConfigs.Configs[index], index) {
       this.index = index;
@@ -92,9 +96,18 @@ namespace TowerfallAi.Core {
     }
 
     public void UpdateGameInput(string response) {
+      this.actions = response;
       this.InputState = new InputState();
       ProcessResponse(response);
       this.prevInputState = GetCopy(this.InputState);
+    }
+
+    /// <summary>
+    /// Keeps the buttons of the last reply held for one more frame. Like on a controller, that no
+    /// longer counts as pressing them.
+    /// </summary>
+    public void HoldGameInput() {
+      UpdateGameInput(this.actions);
     }
 
     public abstract void Send(string message, int frame);

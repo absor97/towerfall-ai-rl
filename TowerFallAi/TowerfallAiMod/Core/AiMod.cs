@@ -16,7 +16,7 @@ namespace TowerfallAi.Core {
   /// Entry point for the modifications in the game.
   /// </summary>
   public static class AiMod {
-    public const string Version = "0.1.1";
+    public const string Version = "0.2.0";
     public const string BaseDirectory = "aimod";
     private const string defaultConfigName = "config.json";
     private const string poolName = "default";
@@ -40,7 +40,7 @@ namespace TowerfallAi.Core {
 
     public static bool IsNoConfig { get { return true; } }
     public static bool IsFastrun { get { return true; } }
-    public static bool NoGraphics { get { return false; } }
+    public static bool NoGraphics { get { return Config != null && Config.noGraphics; } }
 
     private static object ongoingOperationLock = new object();
 
@@ -70,6 +70,7 @@ namespace TowerfallAi.Core {
 
     public class ResetOperation {
       public List<JObject> Entities { get; set; }
+      public int? Seed { get; set; }
     }
 
     public static void ParseArgs(string[] args) {
@@ -278,7 +279,7 @@ namespace TowerfallAi.Core {
         }
 
         if (resetOperation != null) {
-          Agents.Reset(resetOperation.Entities, ctsSession.Token);
+          Agents.Reset(resetOperation.Entities, resetOperation.Seed, ctsSession.Token);
           resetOperation = null;
         }
       }

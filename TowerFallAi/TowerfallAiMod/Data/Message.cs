@@ -53,6 +53,15 @@ namespace TowerfallAi.Data {
 
     [DataMember(EmitDefaultValue = false)]
     public int id;
+
+    // Actions only: the number of frames to hold the buttons for. The next update is sent after
+    // that many frames. With several agents the smallest value counts.
+    [DataMember(EmitDefaultValue = false)]
+    public int frames;
+
+    // Reset only: seeds the game's random numbers for the new episode.
+    [DataMember(EmitDefaultValue = false)]
+    public int? seed;
   }
 
   public class DrawInstruction {

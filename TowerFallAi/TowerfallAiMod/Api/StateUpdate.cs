@@ -8,6 +8,9 @@ namespace TowerfallAi.Api {
     
     public List<StateEntity> entities = new List<StateEntity>();
 
+    // What happened since the previous update.
+    public List<StateEvent> events = new List<StateEvent>();
+
     public float dt;
     public int id;
   }

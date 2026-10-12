@@ -237,7 +237,7 @@ namespace TowerfallAi.Core {
     }
 
     private void HandleResetMessage(RemoteConnection connection, Message message) {
-      AiMod.Reset(new AiMod.ResetOperation { Entities = message.entities });
+      AiMod.Reset(new AiMod.ResetOperation { Entities = message.entities, Seed = message.seed });
       connection.Write(JsonConvert.SerializeObject(new Message {
         type = Message.Type.Result,
         success = true,

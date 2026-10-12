@@ -25,23 +25,34 @@ namespace TowerfallAi.Mod {
 
     static Dictionary<Entity, Vec2> prevPositions = new Dictionary<Entity, Vec2>();
 
+    // Frames between the previous update and this one.
+    public static int FramesPerUpdate = 1;
+
     public static void Reset() {
       ids.Clear();
       prevPositions.Clear();
+      FramesPerUpdate = 1;
     }
 
-    public static bool TryGetSpeed(object obj, out Vector2 speed) {
-      var type = obj.GetType();
-      speed = new Vector2();
-      var field = type.GetField("Speed");
-      if (field != null) {
-        field.GetValue(obj);
-      }
-      return false;
+    /// <summary>
+    /// Reports the speed the game moves the entity with, instead of the change in position.
+    /// </summary>
+    public static void SetVelocity(StateEntity state, Vector2 speed) {
+      state.vel = new Vec2 {
+        x = speed.X,
+        y = -speed.Y
+      };
     }
 
     static float GetDecimal(float x) {
       return x - (float)(Math.Round(x));
+    }
+
+    // The playfield wraps around, so an entity that crosses an edge moves by almost a whole screen.
+    static float WrapDelta(float delta, float size) {
+      if (delta > size / 2) return delta - size;
+      if (delta < -size / 2) return delta + size;
+      return delta;
     }
 
     public static void SetAiState(Entity ent, StateEntity state) {
@@ -72,28 +83,19 @@ namespace TowerfallAi.Mod {
       state.pos = new Vec2 { x = x, y = y };
 
       Vec2 prevPos;
-      Vector2 speed;
-
-      if (TryGetSpeed(ent, out speed)) {
+      if (prevPositions.TryGetValue(ent, out prevPos)) {
         state.vel = new Vec2 {
-          x = speed.X,
-          y = -speed.Y
+          x = WrapDelta(state.pos.x - prevPos.x, 320) / FramesPerUpdate,
+          y = WrapDelta(state.pos.y - prevPos.y, 240) / FramesPerUpdate,
         };
       } else {
-        if (prevPositions.TryGetValue(ent, out prevPos)) {
-          state.vel = new Vec2 {
-            x = state.pos.x - prevPos.x,
-            y = state.pos.y - prevPos.y,
-          };
-        } else {
-          state.vel = new Vec2 {
-            x = 0,
-            y = 0,
-          };
-        }
-        prevPositions[ent] = state.pos;
+        state.vel = new Vec2 {
+          x = 0,
+          y = 0,
+        };
       }
-      
+      prevPositions[ent] = state.pos;
+
       if (ent.Collider == null) {
         state.size = new Vec2();
       } else {
@@ -140,7 +142,10 @@ namespace TowerfallAi.Mod {
         arrowType = arrow.ArrowType.ToString().FirstLower(),
       };
       SetAiState(arrow, state);
+      SetVelocity(state, arrow.Speed);
       state.state = arrow.State.ToString().FirstLower();
+      state.playerIndex = arrow.PlayerIndex;
+      state.dangerous = arrow.Dangerous;
       return state;
     }
 

@@ -3,6 +3,27 @@ A mod that enables AI to play the game [TowerFall Ascension](http://www.towerfal
 
 ![A mod that enables AI to play the game TowerFall Ascension](./banner.png)
 
+# This fork
+
+Version 0.2.0 extends the upstream mod (0.1.1) for reinforcement learning:
+
+* `vel` of archers and arrows is the speed the game moves them with. Upstream reported the change in position for everything, which is zero in the first frame of an arrow and jumps when an entity wraps around the screen. Other entities still report the change in position per frame, without the jump.
+* Archers report `dodgeCooldown` (it was always `false`) and `aiming`. Arrows report `playerIndex`, the player that shot them, and `dangerous`.
+* `update` carries `events`: every death of a player with its killer and cause, and the scores at the end of a round.
+* `actions` accepts `frames` to hold the buttons for several frames without an update in between.
+* `reset` accepts `seed`. The same seed and the same actions replay the same episode.
+* `noGraphics` in the config turns drawing off.
+
+## Building
+
+The .NET SDK is enough, Visual Studio is not needed. Install the upstream release into the game folder first, as described below, then run this with the game closed:
+
+```shell
+.\install.ps1
+```
+
+It builds `TowerfallAiMod.dll`, copies it to the game folder and runs `Patcher.exe` there.
+
 # Installing
 
 Only tested on Windows at the moment.
@@ -131,6 +152,10 @@ Once you are comfortable with the basics, read the [API](#api) section for more 
       // sandbox
   "level": 2, // Level selection. [1-12]
   "skipWaves": 0, // Amount of waves to skip in quest mode.
+  "fps": 60, // Caps the speed of the game. 0 removes the cap.
+  "agentTimeout": "00:00:10", // How long the game waits for the reply of an agent.
+  "noGraphics": false, // true turns drawing off, for training.
+  "solids": [[0, 1, ...], ...], // Sandbox mode only. 24 rows of 32 cells, from the top of the screen. 1 puts a block there.
   "agents": [
     {
       "type": "remote", // Possible values:
@@ -216,11 +241,35 @@ Every frame, an `update` is sent to indicate the current state of the game:
 ```jsonc
 {
   "type": "update", // A normal update of the game state.
+  "id": 0, // The frame number. The reply has to repeat it.
   "entities": [ // The list of entities, like players, arrows, enemies, etc.
     <Entity>,
     <Entity>,
     ...
+  ],
+  "events": [ // What happened since the previous update. Empty most of the time.
+    <Event>,
+    ...
   ]
+}
+```
+
+An event is one of:
+
+```jsonc
+{
+  "type": "death", // A player died.
+  "playerIndex": 1,
+  "killerIndex": 0, // The player that caused it, -1 if it was no player. Equal to playerIndex for a suicide.
+  "cause": "arrow" // arrow, explosion, brambles, jumpedOn, lava, shock, spikeBall, fallingObject, squish, curse, miasma, enemy, chalice
+}
+```
+
+```jsonc
+{
+  "type": "roundEnd", // A versus round ended.
+  "scores": [1, 0], // Indexed by team: 0 is blue, 1 is red.
+  "winner": -1 // The index in scores that won the match, -1 while the match goes on.
 }
 ```
 
@@ -229,6 +278,8 @@ For every `update`, reply with `actions`, containing the set of buttons to be pr
 ```jsonc
 {
   "type": "actions",
+  "id": 0, // The id of the update this replies to.
+  "frames": 1, // Optional. The number of frames to hold these buttons for. The next update is sent after that many frames, and its events cover all of them. With several agents the smallest value counts.
   "actions": "jr" // The actions chosen by the agent. Each letter represents a pressed button. This example means that 'jump' and 'right' are pressed, and no other button is pressed. Mapping of all buttons:
       // r = right
       // l = left
@@ -254,7 +305,7 @@ Here is the reference of the entity types. Before diving on each one, know that 
 {
   "id": 0, // An id to keep track of an entity over many frames.
   "pos": {"x": 0.0, "y": 0.0}, // 2D vector indicating the position of its center.
-  "vel": {"x": 0.0, "y": 0.0}, // 2D vector indicating its velocity.
+  "vel": {"x": 0.0, "y": 0.0}, // 2D vector indicating its velocity in pixels per frame. For archers and arrows it is the speed the game moves them with, for everything else the change in position.
   "size": {"x": 0.0, "y": 0.0}, // 2D vector indicating its size.
   "isEnemy": true, // True if it is an enemy, false otherwise. Enemies refer to the monsters in quest mode. Players are not marked as enemies.
   "canHurt": true, // True if players die if they touch this entity. False if it is safe to touch.
@@ -282,11 +333,12 @@ This can be either the archer that player/agent controls, or the enemy archers t
   "arrows": ["normal", "bomb", ...], // List of arrows that the archer is holding.
   "canHurt": true, // true if the archer can stomp on others.
   "dead": false, // true if dead. Useful when reviving teammates.
-  "dodgeCooldown": 0, // Indicates how long until archer can dodge again. 0 if it can dodge now, more than 0 otherwise.
+  "dodgeCooldown": false, // true from the start of a dodge until the archer can dodge again.
+  "aiming": false, // true while the archer holds the bow drawn.
   "onGround": true, // true if stepping on the ground, false otherwise. Archer needs to be 'onGround':true to be able to jump.
   "onWall": false, // true if leaning on a wall, false otherwise. Archer needs to be leaning on wall to wall jump. They can also delay falling when holding the wall.
   "shield": false, // true if archer has a shield, false otherwise.
-  "wings": false, // true if archer has wings, false otherwise.
+  "wing": false, // true if archer has wings, false otherwise.
   "state": "normal", // Possible archer states:
       // dodging
       // ducking
@@ -322,7 +374,9 @@ This can be either the archer that player/agent controls, or the enemy archers t
       // layingOnGround: It can be picked up
       // shooting: Arrow is mid air.
       // stuck: It can be picked up
-  "timeLeft": 0 // Specific to bomb arrows. It is the time until they explode.
+  "timeLeft": 0, // Specific to bomb arrows. It is the time until they explode.
+  "playerIndex": 0, // The player that shot it, -1 if it was not shot by a player.
+  "dangerous": true // true while it kills what it hits.
 }
 ```
 
@@ -749,6 +803,7 @@ Management API also supports a `reset` message that can be used to choose the in
 ```jsonc
 {
   "type": "reset",
+  "seed": 7, // Optional. Seeds the random numbers of the game: the same seed and the same actions replay the same episode.
   "entities": [
     {
       "type": "bat",
